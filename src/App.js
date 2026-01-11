@@ -1,69 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Euro, User, Mail, Phone, Trash2, CheckCircle, XCircle, Clock, TrendingUp, LogOut } from 'lucide-react';
+import { Calendar, Euro, User, Mail, Phone, Trash2, CheckCircle, XCircle, Clock, TrendingUp, LogOut, MessageSquare } from 'lucide-react';
 
 const API_URL = 'https://villa-marina-api.onrender.com/api';
 
-// ============================================
-// SERVIZIO EMAIL
-// ============================================
-const sendConfirmationEmail = async (booking) => {
-  try {
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: 'service_villamarina',
-        template_id: 'template_confirm',
-        user_id: 'YOUR_EMAILJS_PUBLIC_KEY',
-        template_params: {
-          to_email: booking.email,
-          to_name: booking.name,
-          start_date: new Date(booking.start_date).toLocaleDateString('it-IT'),
-          end_date: new Date(booking.end_date).toLocaleDateString('it-IT'),
-          guests: booking.guests,
-          price: booking.price
-        }
-      })
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('Errore invio email conferma:', error);
-    return false;
-  }
-};
-
-const sendRejectionEmail = async (booking) => {
-  try {
-    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: 'service_villamarina',
-        template_id: 'template_reject',
-        user_id: 'YOUR_EMAILJS_PUBLIC_KEY',
-        template_params: {
-          to_email: booking.email,
-          to_name: booking.name,
-          start_date: new Date(booking.start_date).toLocaleDateString('it-IT'),
-          end_date: new Date(booking.end_date).toLocaleDateString('it-IT')
-        }
-      })
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('Errore invio email rifiuto:', error);
-    return false;
-  }
-};
-
-// ============================================
-// COMPONENTE PRINCIPALE
-// ============================================
 const AdminPanel = () => {
   const [bookings, setBookings] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('bookings');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -118,9 +64,10 @@ const AdminPanel = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [bookingsRes, statsRes] = await Promise.all([
+      const [bookingsRes, statsRes, contactsRes] = await Promise.all([
         fetch(`${API_URL}/bookings`),
-        fetch(`${API_URL}/stats`)
+        fetch(`${API_URL}/stats`),
+        fetch(`${API_URL}/contacts`)
       ]);
 
       if (bookingsRes.ok) {
@@ -131,6 +78,11 @@ const AdminPanel = () => {
       if (statsRes.ok) {
         const statsData = await statsRes.json();
         setStats(statsData);
+      }
+
+      if (contactsRes.ok) {
+        const contactsData = await contactsRes.json();
+        setContacts(contactsData);
       }
     } catch (error) {
       console.error('Errore caricamento dati:', error);
@@ -168,17 +120,10 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        try {
-          if (status === 'confirmed') {
-            await sendConfirmationEmail(booking);
-            alert('✅ Prenotazione confermata! Email di conferma inviata al cliente.');
-          } else if (status === 'cancelled') {
-            await sendRejectionEmail(booking);
-            alert('✅ Prenotazione rifiutata. Email inviata al cliente.');
-          }
-        } catch (emailError) {
-          console.error('Errore invio email:', emailError);
-          alert('✅ Prenotazione aggiornata, ma errore invio email.');
+        if (status === 'confirmed') {
+          alert('✅ Prenotazione confermata!');
+        } else if (status === 'cancelled') {
+          alert('✅ Prenotazione rifiutata.');
         }
         
         await loadData();
@@ -206,6 +151,39 @@ const AdminPanel = () => {
       }
     } catch (error) {
       alert('Errore cancellazione prenotazione');
+    }
+  };
+
+  const updateContactStatus = async (id, status) => {
+    try {
+      const response = await fetch(`${API_URL}/contacts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+
+      if (response.ok) {
+        await loadData();
+      }
+    } catch (error) {
+      console.error('Errore aggiornamento contatto:', error);
+    }
+  };
+
+  const deleteContact = async (id) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo messaggio?')) return;
+
+    try {
+      const response = await fetch(`${API_URL}/contacts/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await loadData();
+        alert('Messaggio eliminato');
+      }
+    } catch (error) {
+      alert('Errore cancellazione messaggio');
     }
   };
 
@@ -241,9 +219,7 @@ const AdminPanel = () => {
     }
   };
 
-  // ============================================
   // SCHERMATA LOGIN
-  // ============================================
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
@@ -290,9 +266,7 @@ const AdminPanel = () => {
     );
   }
 
-  // ============================================
-  // PANNELLO ADMIN
-  // ============================================
+  // LOADING
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -304,6 +278,7 @@ const AdminPanel = () => {
     );
   }
 
+  // PANNELLO ADMIN
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -322,8 +297,32 @@ const AdminPanel = () => {
           </button>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="mb-8 flex gap-4">
+          <button
+            onClick={() => setActiveTab('bookings')}
+            className={`px-6 py-3 rounded-lg font-semibold transition ${
+              activeTab === 'bookings'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            📅 Prenotazioni ({bookings.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('contacts')}
+            className={`px-6 py-3 rounded-lg font-semibold transition ${
+              activeTab === 'contacts'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            ✉️ Messaggi ({contacts.filter(c => c.status === 'new').length} nuovi)
+          </button>
+        </div>
+
         {/* Statistiche */}
-        {stats && (
+        {stats && activeTab === 'bookings' && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-xl shadow-md p-6">
               <div className="flex items-center justify-between">
@@ -367,167 +366,255 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Filtri */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                filter === 'all' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Tutte ({bookings.length})
-            </button>
-            <button
-              onClick={() => setFilter('pending')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                filter === 'pending' 
-                  ? 'bg-yellow-500 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              In Attesa ({bookings.filter(b => b.status === 'pending').length})
-            </button>
-            <button
-              onClick={() => setFilter('confirmed')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                filter === 'confirmed' 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Confermate ({bookings.filter(b => b.status === 'confirmed').length})
-            </button>
-            <button
-              onClick={() => setFilter('cancelled')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                filter === 'cancelled' 
-                  ? 'bg-red-500 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Cancellate ({bookings.filter(b => b.status === 'cancelled').length})
-            </button>
-          </div>
-        </div>
+        {/* SEZIONE PRENOTAZIONI */}
+        {activeTab === 'bookings' && (
+          <>
+            {/* Filtri */}
+            <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setFilter('all')}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                    filter === 'all' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Tutte ({bookings.length})
+                </button>
+                <button
+                  onClick={() => setFilter('pending')}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                    filter === 'pending' 
+                      ? 'bg-yellow-500 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  In Attesa ({bookings.filter(b => b.status === 'pending').length})
+                </button>
+                <button
+                  onClick={() => setFilter('confirmed')}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                    filter === 'confirmed' 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Confermate ({bookings.filter(b => b.status === 'confirmed').length})
+                </button>
+                <button
+                  onClick={() => setFilter('cancelled')}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                    filter === 'cancelled' 
+                      ? 'bg-red-500 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Cancellate ({bookings.filter(b => b.status === 'cancelled').length})
+                </button>
+              </div>
+            </div>
 
-        {/* Tabella Prenotazioni */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Ospiti
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Prezzo
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Stato
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Azioni
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredBookings.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                      Nessuna prenotazione trovata
-                    </td>
-                  </tr>
-                ) : (
-                  filteredBookings.map((booking) => (
-                    <tr key={booking.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4">
+            {/* Tabella Prenotazioni */}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Cliente
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Ospiti
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Prezzo
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Stato
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        Azioni
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {filteredBookings.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                          Nessuna prenotazione trovata
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBookings.map((booking) => (
+                        <tr key={booking.id} className="hover:bg-gray-50 transition">
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-3">
+                              <User className="text-gray-400 flex-shrink-0 mt-1" size={18} />
+                              <div>
+                                <p className="font-semibold text-gray-900">{booking.name}</p>
+                                <p className="text-sm text-gray-600 flex items-center gap-1">
+                                  <Mail size={14} /> {booking.email}
+                                </p>
+                                <p className="text-sm text-gray-600 flex items-center gap-1">
+                                  <Phone size={14} /> {booking.phone}
+                                </p>
+                                {booking.notes && (
+                                  <p className="text-xs text-gray-500 mt-1 italic">Note: {booking.notes}</p>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm">
+                              <p className="font-medium text-gray-900">
+                                {new Date(booking.start_date).toLocaleDateString('it-IT')}
+                              </p>
+                              <p className="text-gray-600">↓</p>
+                              <p className="font-medium text-gray-900">
+                                {new Date(booking.end_date).toLocaleDateString('it-IT')}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-gray-900 font-medium">{booking.guests}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1">
+                              <Euro size={16} className="text-blue-600" />
+                              <span className="font-bold text-gray-900">{booking.price}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
+                              {getStatusIcon(booking.status)}
+                              {getStatusText(booking.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {booking.status === 'pending' && (
+                                <>
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                                    className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
+                                    title="Conferma"
+                                  >
+                                    <CheckCircle size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                                    className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
+                                    title="Rifiuta"
+                                  >
+                                    <XCircle size={18} />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={() => deleteBooking(booking.id)}
+                                className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+                                title="Elimina"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* SEZIONE MESSAGGI CONTATTI */}
+        {activeTab === 'contacts' && (
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Messaggi dei Clienti</h2>
+              
+              {contacts.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  Nessun messaggio ricevuto
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {contacts.map((contact) => (
+                    <div 
+                      key={contact.id} 
+                      className={`border-2 rounded-lg p-6 transition ${
+                        contact.status === 'new' 
+                          ? 'border-blue-300 bg-blue-50' 
+                          : 'border-gray-200 bg-white'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-4">
                         <div className="flex items-start gap-3">
-                          <User className="text-gray-400 flex-shrink-0 mt-1" size={18} />
+                          <MessageSquare className="text-gray-400 flex-shrink-0 mt-1" size={20} />
                           <div>
-                            <p className="font-semibold text-gray-900">{booking.name}</p>
+                            <p className="font-bold text-gray-900 text-lg">{contact.name}</p>
                             <p className="text-sm text-gray-600 flex items-center gap-1">
-                              <Mail size={14} /> {booking.email}
+                              <Mail size={14} /> {contact.email}
                             </p>
-                            <p className="text-sm text-gray-600 flex items-center gap-1">
-                              <Phone size={14} /> {booking.phone}
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(contact.created_at).toLocaleString('it-IT')}
                             </p>
-                            {booking.notes && (
-                              <p className="text-xs text-gray-500 mt-1 italic">Note: {booking.notes}</p>
-                            )}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-900">
-                            {new Date(booking.start_date).toLocaleDateString('it-IT')}
-                          </p>
-                          <p className="text-gray-600">↓</p>
-                          <p className="font-medium text-gray-900">
-                            {new Date(booking.end_date).toLocaleDateString('it-IT')}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-gray-900 font-medium">{booking.guests}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <Euro size={16} className="text-blue-600" />
-                          <span className="font-bold text-gray-900">{booking.price}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(booking.status)}`}>
-                          {getStatusIcon(booking.status)}
-                          {getStatusText(booking.status)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          {booking.status === 'pending' && (
-                            <>
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                                className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition"
-                                title="Conferma"
-                              >
-                                <CheckCircle size={18} />
-                              </button>
-                              <button
-                                onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                                className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition"
-                                title="Rifiuta"
-                              >
-                                <XCircle size={18} />
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => deleteBooking(booking.id)}
-                            className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
-                            title="Elimina"
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            contact.status === 'new' 
+                              ? 'bg-blue-500 text-white' 
+                              : contact.status === 'read'
+                              ? 'bg-gray-300 text-gray-700'
+                              : 'bg-green-500 text-white'
+                          }`}>
+                            {contact.status === 'new' ? '🆕 Nuovo' : contact.status === 'read' ? '👁️ Letto' : '✅ Risposto'}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                        <p className="text-gray-800 whitespace-pre-wrap">{contact.message}</p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {contact.status === 'new' && (
+                          <button
+                            onClick={() => updateContactStatus(contact.id, 'read')}
+                            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition text-sm"
+                          >
+                            Segna come Letto
+                          </button>
+                        )}
+                        {(contact.status === 'new' || contact.status === 'read') && (
+                          <button
+                            onClick={() => updateContactStatus(contact.id, 'replied')}
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition text-sm"
+                          >
+                            Segna come Risposto
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteContact(contact.id)}
+                          className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm flex items-center gap-1"
+                        >
+                          <Trash2 size={16} /> Elimina
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Footer Info */}
         <div className="mt-8 text-center text-gray-500 text-sm">
