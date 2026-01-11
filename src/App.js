@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Euro, User, Mail, Phone, Trash2, CheckCircle, XCircle, Clock, TrendingUp, LogOut } from 'lucide-react';
-import { sendConfirmationEmail, sendRejectionEmail } from './EmailService.js';
+import { sendConfirmationEmail, sendRejectionEmail } from './emailService';
 
 const API_URL = 'https://villa-marina-api.onrender.com/api';
 
