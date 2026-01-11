@@ -1,13 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Euro, User, Mail, Phone, Trash2, CheckCircle, XCircle, Clock, TrendingUp, LogOut } from 'lucide-react';
-import { sendConfirmationEmail, sendRejectionEmail } from './emailService';
 
 const API_URL = 'https://villa-marina-api.onrender.com/api';
 
 // ============================================
+// SERVIZIO EMAIL
+// ============================================
+const sendConfirmationEmail = async (booking) => {
+  try {
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: 'service_villamarina',
+        template_id: 'template_confirm',
+        user_id: 'YOUR_EMAILJS_PUBLIC_KEY',
+        template_params: {
+          to_email: booking.email,
+          to_name: booking.name,
+          start_date: new Date(booking.start_date).toLocaleDateString('it-IT'),
+          end_date: new Date(booking.end_date).toLocaleDateString('it-IT'),
+          guests: booking.guests,
+          price: booking.price
+        }
+      })
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Errore invio email conferma:', error);
+    return false;
+  }
+};
+
+const sendRejectionEmail = async (booking) => {
+  try {
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: 'service_villamarina',
+        template_id: 'template_reject',
+        user_id: 'YOUR_EMAILJS_PUBLIC_KEY',
+        template_params: {
+          to_email: booking.email,
+          to_name: booking.name,
+          start_date: new Date(booking.start_date).toLocaleDateString('it-IT'),
+          end_date: new Date(booking.end_date).toLocaleDateString('it-IT')
+        }
+      })
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Errore invio email rifiuto:', error);
+    return false;
+  }
+};
+
+// ============================================
 // COMPONENTE PRINCIPALE
 // ============================================
-
 const AdminPanel = () => {
   const [bookings, setBookings] = useState([]);
   const [stats, setStats] = useState(null);
@@ -19,7 +70,6 @@ const AdminPanel = () => {
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
-    // Controlla se già autenticato
     const token = localStorage.getItem('adminToken');
     if (token === 'admin-authenticated') {
       setIsAuthenticated(true);
@@ -99,7 +149,6 @@ const AdminPanel = () => {
         return;
       }
       
-      // Prepara i dati corretti per l'update
       const updateData = {
         name: booking.name,
         email: booking.email,
@@ -119,7 +168,6 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        // Invia email al cliente
         try {
           if (status === 'confirmed') {
             await sendConfirmationEmail(booking);
@@ -206,14 +254,29 @@ const AdminPanel = () => {
             <p className="text-gray-600">Villa Marina - Pannello Amministrazione</p>
           </div>
           
+          {loginError && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+              {loginError}
+            </div>
+          )}
+          
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+            placeholder="Username"
+            className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg mb-4 focus:border-blue-500 focus:outline-none text-lg"
+            autoFocus
+          />
+          
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-            placeholder="Inserisci password"
+            placeholder="Password"
             className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg mb-4 focus:border-blue-500 focus:outline-none text-lg"
-            autoFocus
           />
           
           <button
